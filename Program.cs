@@ -10,7 +10,6 @@ builder.Services.AddOpenApi();
 
 builder.Services.AddControllers();
 
-
 // ===============================
 // CORS
 // ===============================
@@ -26,12 +25,11 @@ builder.Services.AddCors(options =>
     });
 });
 
-
 // ===============================
 // POSTGRESQL CONNECTION
 // ===============================
 
-builder.Services.AddScoped(sp =>
+builder.Services.AddScoped<NpgsqlConnection>(sp =>
 {
     var connectionString =
         builder.Configuration.GetConnectionString("HospitalDatabase");
@@ -39,21 +37,20 @@ builder.Services.AddScoped(sp =>
     return new NpgsqlConnection(connectionString);
 });
 
-
 var app = builder.Build();
 
+// ===============================
+// OPENAPI
+// ===============================
+
+// Enabled in Production also
+app.MapOpenApi();
 
 // ===============================
-// MIDDLEWARE
+// HTTPS
 // ===============================
-
-if (app.Environment.IsDevelopment())
-{
-    app.MapOpenApi();
-}
 
 app.UseHttpsRedirection();
-
 
 // ===============================
 // CORS
@@ -61,13 +58,25 @@ app.UseHttpsRedirection();
 
 app.UseCors("FrontendPolicy");
 
-
 // ===============================
 // CONTROLLERS
 // ===============================
 
 app.MapControllers();
 
+// ===============================
+// ROOT / HEALTH CHECK
+// ===============================
+
+app.MapGet("/", () =>
+{
+    return Results.Ok(new
+    {
+        success = true,
+        message = "Smart Hospital API is running successfully!",
+        status = "Live"
+    });
+});
 
 // ===============================
 // DATABASE TEST
@@ -93,7 +102,6 @@ app.MapGet("/api/database-test", async (NpgsqlConnection connection) =>
         );
     }
 });
-
 
 // ===============================
 // WEATHER FORECAST
@@ -136,9 +144,7 @@ app.MapGet("/weatherforecast", () =>
 })
 .WithName("GetWeatherForecast");
 
-
 app.Run();
-
 
 // ===============================
 // WEATHER MODEL
@@ -152,4 +158,7 @@ record WeatherForecast(
     public int TemperatureF =>
         32 + (int)(TemperatureC / 0.5556);
 }
+
+
+
 
