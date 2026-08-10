@@ -10,10 +10,9 @@ RUN dotnet publish "SmartHospitalAPI.csproj" -c Release -o /app/publish /p:UseAp
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
 WORKDIR /app
 
+ENV ASPNETCORE_URLS=http://+:8080
+ENV DOTNET_USE_POLLING_FILE_WATCHER=1
+
 COPY --from=build /app/publish .
-
-ENV ASPNETCORE_URLS=http://+:10000
-
-EXPOSE 10000
 
 ENTRYPOINT ["dotnet", "SmartHospitalAPI.dll"]
