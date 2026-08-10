@@ -2,17 +2,17 @@ using Npgsql;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// ===============================
+// =====================================================
 // SERVICES
-// ===============================
-
-builder.Services.AddOpenApi();
+// =====================================================
 
 builder.Services.AddControllers();
 
-// ===============================
+builder.Services.AddOpenApi();
+
+// =====================================================
 // CORS
-// ===============================
+// =====================================================
 
 builder.Services.AddCors(options =>
 {
@@ -25,48 +25,69 @@ builder.Services.AddCors(options =>
     });
 });
 
-// ===============================
+// =====================================================
 // POSTGRESQL CONNECTION
-// ===============================
+// =====================================================
+
+var connectionString =
+    builder.Configuration.GetConnectionString("HospitalDatabase");
+
+if (string.IsNullOrWhiteSpace(connectionString))
+{
+    Console.WriteLine(
+        "WARNING: PostgreSQL connection string 'HospitalDatabase' was not found."
+    );
+}
 
 builder.Services.AddScoped<NpgsqlConnection>(sp =>
 {
-    var connectionString =
-        builder.Configuration.GetConnectionString("HospitalDatabase");
+    var configuration =
+        sp.GetRequiredService<IConfiguration>();
 
-    return new NpgsqlConnection(connectionString);
+    var cs =
+        configuration.GetConnectionString("HospitalDatabase");
+
+    if (string.IsNullOrWhiteSpace(cs))
+    {
+        throw new InvalidOperationException(
+            "PostgreSQL connection string is missing. " +
+            "Set ConnectionStrings__HospitalDatabase in Render Environment Variables."
+        );
+    }
+
+    return new NpgsqlConnection(cs);
 });
 
 var app = builder.Build();
 
-// ===============================
+// =====================================================
 // OPENAPI
-// ===============================
+// =====================================================
 
 // Enabled in Production also
 app.MapOpenApi();
 
-// ===============================
+// =====================================================
 // HTTPS
-// ===============================
+// =====================================================
 
 app.UseHttpsRedirection();
 
-// ===============================
+// =====================================================
 // CORS
-// ===============================
+// =====================================================
 
 app.UseCors("FrontendPolicy");
 
-// ===============================
+// =====================================================
 // CONTROLLERS
-// ===============================
+// =====================================================
 
 app.MapControllers();
 
-// ===============================
+// =====================================================
 // ROOT / HEALTH CHECK
-// ===============================
+// =====================================================
 
 app.MapGet("/", () =>
 {
@@ -78,34 +99,38 @@ app.MapGet("/", () =>
     });
 });
 
-// ===============================
+// =====================================================
 // DATABASE TEST
-// ===============================
+// =====================================================
 
-app.MapGet("/api/database-test", async (NpgsqlConnection connection) =>
-{
-    try
+app.MapGet(
+    "/api/database-test",
+    async (NpgsqlConnection connection) =>
     {
-        await connection.OpenAsync();
-
-        return Results.Ok(new
+        try
         {
-            success = true,
-            message = "PostgreSQL database connected successfully!"
-        });
-    }
-    catch (Exception ex)
-    {
-        return Results.Problem(
-            detail: ex.Message,
-            title: "Database connection failed"
-        );
-    }
-});
+            await connection.OpenAsync();
 
-// ===============================
+            return Results.Ok(new
+            {
+                success = true,
+                message = "PostgreSQL database connected successfully!"
+            });
+        }
+        catch (Exception ex)
+        {
+            return Results.Problem(
+                detail: ex.Message,
+                title: "Database connection failed",
+                statusCode: 500
+            );
+        }
+    }
+);
+
+// =====================================================
 // WEATHER FORECAST
-// ===============================
+// =====================================================
 
 app.MapGet("/weatherforecast", () =>
 {
@@ -123,32 +148,40 @@ app.MapGet("/weatherforecast", () =>
         "Scorching"
     };
 
-    var forecast = Enumerable.Range(1, 5).Select(index =>
-        new WeatherForecast
-        (
-            DateOnly.FromDateTime(
-                DateTime.Now.AddDays(index)
-            ),
+    var forecast =
+        Enumerable
+            .Range(1, 5)
+            .Select(index =>
+                new WeatherForecast
+                (
+                    DateOnly.FromDateTime(
+                        DateTime.Now.AddDays(index)
+                    ),
 
-            Random.Shared.Next(-20, 55),
+                    Random.Shared.Next(-20, 55),
 
-            summaries[
-                Random.Shared.Next(
-                    summaries.Length
+                    summaries[
+                        Random.Shared.Next(
+                            summaries.Length
+                        )
+                    ]
                 )
-            ]
-        ))
-        .ToArray();
+            )
+            .ToArray();
 
     return forecast;
 })
 .WithName("GetWeatherForecast");
 
+// =====================================================
+// START APPLICATION
+// =====================================================
+
 app.Run();
 
-// ===============================
+// =====================================================
 // WEATHER MODEL
-// ===============================
+// =====================================================
 
 record WeatherForecast(
     DateOnly Date,
@@ -158,6 +191,10 @@ record WeatherForecast(
     public int TemperatureF =>
         32 + (int)(TemperatureC / 0.5556);
 }
+
+
+
+
 
 
 
